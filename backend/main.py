@@ -158,9 +158,4 @@ async def vend(data: VendRequest):
     return {"status": "success", "message": "Print job sent successfully"}
 
 
-@app.post("/test-mark-paid/{order_id}")
-async def test_mark_paid(order_id: str):
-    if order_id not in orders:
-        raise HTTPException(status_code=404, detail="Order not found")
-    orders[order_id]["paid"] = True
-    return {"status": "marked as paid for testing"}
+
