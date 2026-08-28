@@ -1,122 +1,142 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from "react";
+import axios from "axios";
+import "./App.css";
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState("");
+  const [orderId, setOrderId] = useState(null);
+  const [paymentDone, setPaymentDone] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+    setStatus("");
+    setPaymentDone(false);
+    setOrderId(null);
+  };
+
+  const handleUploadAndPay = async () => {
+    if (!file) {
+      alert("Please select a PDF file first");
+      return;
+    }
+
+    if (file.type !== "application/pdf") {
+      alert("Only PDF files are allowed");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Uploading file...");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const uploadRes = await axios.post(`${BACKEND_URL}/upload`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const data = uploadRes.data;
+      setOrderId(data.order_id);
+      setStatus("Opening payment gateway...");
+
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: "INR",
+        name: "PaaS - Printer as a Service",
+        description: "Print Job Payment",
+        order_id: data.razorpay_order_id,
+        handler: async function (response) {
+          setStatus("Verifying payment...");
+
+          try {
+            await axios.post(`${BACKEND_URL}/verify-payment`, {
+              order_id: data.order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+
+            setPaymentDone(true);
+            setStatus("✅ Payment verified! Click Vend to print your document.");
+          } catch (err) {
+            setStatus("❌ Payment verification failed: " + (err.response?.data?.detail || err.message));
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setStatus("Payment cancelled.");
+            setLoading(false);
+          },
+        },
+        theme: { color: "#2563eb" },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+      setLoading(false);
+    } catch (err) {
+      setLoading(false);
+      setStatus("❌ Upload failed: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleVend = async () => {
+    if (!orderId || !paymentDone) {
+      alert("Complete payment first");
+      return;
+    }
+
+    setLoading(true);
+    setStatus("Sending to printer...");
+
+    try {
+      const res = await axios.post(`${BACKEND_URL}/vend`, { order_id: orderId });
+      setStatus("🖨️ " + res.data.message);
+      setPaymentDone(false);
+      setOrderId(null);
+      setFile(null);
+    } catch (err) {
+      setStatus("❌ Vend failed: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="container">
+      <h1>🖨️ PaaS — Printer as a Service</h1>
+      <p className="subtitle">Upload your PDF, pay, and print instantly</p>
 
-      <div className="ticks"></div>
+      <div className="card">
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={handleFileChange}
+          disabled={loading || paymentDone}
+        />
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {!paymentDone && (
+          <button onClick={handleUploadAndPay} disabled={loading || !file}>
+            {loading ? "Processing..." : "Upload & Pay"}
+          </button>
+        )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        {paymentDone && (
+          <button className="vend-btn" onClick={handleVend} disabled={loading}>
+            {loading ? "Printing..." : "🖨️ Vend / Print Now"}
+          </button>
+        )}
+
+        {status && <p className="status">{status}</p>}
+      </div>
+    </div>
+  );
 }
 
-export default App
+export default App;
