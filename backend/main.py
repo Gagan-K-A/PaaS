@@ -145,7 +145,7 @@ async def vend(data: VendRequest):
     try:
         pi_response = requests.post(
             PI_API_URL,
-            headers={"X-API-KEY": PI_API_KEY},
+            headers={"X-API-KEY": PI_API_KEY, "ngrok-skip-browser-warning": "true"},
             files={"file": (order["filename"], file_response.content)},
         )
         pi_response.raise_for_status()
@@ -156,4 +156,3 @@ async def vend(data: VendRequest):
     del orders[data.order_id]
 
     return {"status": "success", "message": "Print job sent successfully"}
-
