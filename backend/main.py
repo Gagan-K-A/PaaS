@@ -157,5 +157,3 @@ async def vend(data: VendRequest):
 
     return {"status": "success", "message": "Print job sent successfully"}
 
-
-
