@@ -75,6 +75,7 @@ async def upload_file(file: UploadFile = File(...)):
             folder="paas_uploads",
         )
         file_url = result["secure_url"]
+        public_id = result["public_id"]
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Cloudinary upload failed: {str(e)}"
@@ -94,6 +95,7 @@ async def upload_file(file: UploadFile = File(...)):
     orders[order_id] = {
         "file_url": file_url,
         "filename": file.filename,
+        "public_id": public_id,
         "razorpay_order_id": razorpay_order["id"],
         "amount": FLAT_FEE,
         "paid": False,
@@ -151,7 +153,12 @@ async def vend(data: VendRequest):
         pi_response.raise_for_status()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Printer service error: {str(e)}")
-
+    # Delete the file from Cloudinary upon successful print dispatch
+    try:
+        cloudinary.uploader.destroy(order["public_id"], resource_type="raw")
+    except Exception as e:
+        # Log the deletion error if needed without blocking the response
+        print(f"Failed to delete Cloudinary file: {e}")
     # Clean up order after successful print
     del orders[data.order_id]
 
